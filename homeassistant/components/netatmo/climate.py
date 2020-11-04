@@ -315,7 +315,7 @@ class NetatmoThermostat(NetatmoBase, ClimateEntity):
     @property
     def hvac_action(self) -> Optional[str]:
         """Return the current running hvac operation if supported."""
-        if self._model == NA_THERM:
+        if self._model == NA_THERM and self._boilerstatus is not None:
             return CURRENT_HVAC_MAP_NETATMO[self._boilerstatus]
         # Maybe it is a valve
         if self._room_status and self._room_status.get("heating_power_request", 0) > 0:
@@ -337,12 +337,15 @@ class NetatmoThermostat(NetatmoBase, ClimateEntity):
         """Set new preset mode."""
         if self.target_temperature == 0:
             self._home_status.set_room_thermpoint(
-                self._id, STATE_NETATMO_HOME,
+                self._id,
+                STATE_NETATMO_HOME,
             )
 
         if preset_mode in [PRESET_BOOST, STATE_NETATMO_MAX] and self._model == NA_VALVE:
             self._home_status.set_room_thermpoint(
-                self._id, STATE_NETATMO_MANUAL, DEFAULT_MAX_TEMP,
+                self._id,
+                STATE_NETATMO_MANUAL,
+                DEFAULT_MAX_TEMP,
             )
         elif preset_mode in [PRESET_BOOST, STATE_NETATMO_MAX]:
             self._home_status.set_room_thermpoint(
@@ -393,7 +396,9 @@ class NetatmoThermostat(NetatmoBase, ClimateEntity):
         """Turn the entity off."""
         if self._model == NA_VALVE:
             self._home_status.set_room_thermpoint(
-                self._id, STATE_NETATMO_MANUAL, DEFAULT_MIN_TEMP,
+                self._id,
+                STATE_NETATMO_MANUAL,
+                DEFAULT_MIN_TEMP,
             )
         elif self.hvac_mode != HVAC_MODE_OFF:
             self._home_status.set_room_thermpoint(self._id, STATE_NETATMO_OFF)
