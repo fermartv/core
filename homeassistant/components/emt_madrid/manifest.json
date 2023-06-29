@@ -1,0 +1,9 @@
+{
+  "domain": "emt_madrid",
+  "name": "EMT Madrid",
+  "codeowners": ["@FerMartV"],
+  "documentation": "https://github.com/fermartv/EMT-Madrid/",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/fermartv/EMT-Madrid/issues",
+  "loggers": ["EMT Madrid"]
+}

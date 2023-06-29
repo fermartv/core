@@ -1,0 +1,1 @@
+"""The EMT Madrid integration."""

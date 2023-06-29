@@ -332,6 +332,8 @@ build.json @home-assistant/supervisor
 /homeassistant/components/emoncms/ @borpin
 /homeassistant/components/emonitor/ @bdraco
 /tests/components/emonitor/ @bdraco
+/homeassistant/components/emt_madrid/ @FerMartV
+/tests/components/emt_madrid/ @FerMartV
 /homeassistant/components/emulated_hue/ @bdraco @Tho85
 /tests/components/emulated_hue/ @bdraco @Tho85
 /homeassistant/components/emulated_kasa/ @kbickar
