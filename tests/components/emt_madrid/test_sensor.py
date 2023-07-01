@@ -1,223 +1,317 @@
 """The tests for the EMT Madrid sensor platform."""
+
+
 from unittest.mock import patch
 
-import pytest
-import requests
-import requests_mock
+from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
-from homeassistant.components.emt_madrid.sensor import APIEMT
-
-
-class TestAPIEMT:
-    """Test for APIEMT class."""
-
-    @pytest.fixture
-    def api_emt(self):
-        """Fixture for creating an APIEMT instance."""
-        return APIEMT("user", "password")
-
-    def test_authenticate_valid_credentials(
-        self, requests_mock: requests_mock.Mocker, api_emt
-    ) -> None:
-        """Test authentication with valid credentials."""
-        requests_mock.get(
-            "https://openapi.emtmadrid.es/v1/mobilitylabs/user/login/",
-            json={
-                "code": "01",
-                "description": "Token 3bd5855a-ed3d-41d5-8b4b-182726f86031 extend into control-cache Data recovered OK",
-                "datetime": "2023-06-29T19:50:08.307475",
-                "data": [
-                    {
-                        "accessToken": "3bd5855a-ed3d-41d5-8b4b-182726f86031",
-                    }
-                ],
+VALID_LOGIN_RESPONSE = {
+    "code": "01",
+    "description": "Token 3bd5855a-ed3d-41d5-8b4b-182726f86031 extend into control-cache Data recovered OK, (lapsed: 468 millsecs)",
+    "datetime": "2023-06-29T19:50:08.307475",
+    "data": [
+        {
+            "nameApp": "OPENAPI MobilityLabs",
+            "levelApp": 0,
+            "updatedAt": "2022-11-26T21:05:55.5600000",
+            "userName": "yourusername",
+            "lastUpdate": {"$date": 1688057414194},
+            "idUser": "2f104b08-f8bf-4199-a4bc-c6ecc42ad6ba",
+            "priv": "U",
+            "tokenSecExpiration": 86399,
+            "email": "yourmail@mail.com",
+            "tokenDteExpiration": {"$date": 1688151013194},
+            "flagAdvise": True,
+            "accessToken": "3bd5855a-ed3d-41d5-8b4b-182726f86031",
+            "apiCounter": {
+                "current": 96,
+                "dailyUse": 20000,
+                "owner": 0,
+                "licenceUse": "Please mention EMT Madrid MobilityLabs as data source. Thank you and enjoy!",
+                "aboutUses": "If you need to extend the daily use of this API, please, register your App in Mobilitylabs and use your own X-ClientId and passKey instead of generic login (more info in https://mobilitylabs.emtmadrid.es/doc/new-app and https://apidocs.emtmadrid.es/#api-Block_1_User_identity-login)",
             },
-        )
+            "username": "yourusername",
+        }
+    ],
+}
 
-        token = api_emt.authenticate()
+INVALID_USER_RESPONSE = {
+    "code": "92",
+    "description": "Error: User not found (lapsed: 776 millsecs)",
+    "datetime": "2023-06-29T20:01:09.441986",
+    "data": [],
+}
 
-        assert token == "3bd5855a-ed3d-41d5-8b4b-182726f86031"
+INVALID_PASSWORD_RESPONSE = {
+    "code": "89",
+    "description": "Error: Invalid user or Password (lapsed: 415 millsecs)",
+    "datetime": "2023-06-29T20:02:41.901955",
+    "data": [],
+}
 
-    def test_authenticate_invalid_password(
-        self, requests_mock: requests_mock.Mocker, api_emt
-    ) -> None:
-        """Test authentication with invalid password."""
-        requests_mock.get(
-            "https://openapi.emtmadrid.es/v1/mobilitylabs/user/login/",
-            json={
-                "code": "89",
-                "description": "Error: Invalid user or Password (lapsed: 415 millsecs)",
-                "datetime": "2023-06-29T20:02:41.901955",
-                "data": [],
-            },
-            status_code=200,
-        )
-
-        with pytest.raises(ConnectionError):
-            api_emt.authenticate()
-
-    def test_authenticate_invalid_user(
-        self, requests_mock: requests_mock.Mocker, api_emt
-    ) -> None:
-        """Test authentication with invalid user."""
-        requests_mock.get(
-            "https://openapi.emtmadrid.es/v1/mobilitylabs/user/login/",
-            json={
-                "code": "92",
-                "description": "Error: User not found (lapsed: 776 millsecs)",
-                "datetime": "2023-06-29T20:01:09.441986",
-                "data": [],
-            },
-            status_code=200,
-        )
-
-        with pytest.raises(ConnectionError):
-            api_emt.authenticate()
-
-    @patch.object(requests, "post")
-    def test_update_arrival_times(self, mock_post, api_emt) -> None:
-        """Test updating arrival times for a stop and line."""
-        response_data = {
-            "code": "00",
-            "description": "Data recovered OK (lapsed: 1155 millsecs)",
-            "datetime": "2023-06-29T18:50:13.968932",
-            "data": [
+VALID_STOP_AND_LINE_RESPONSE = {
+    "code": "00",
+    "description": "Data recovered OK (lapsed: 1155 millsecs)",
+    "datetime": "2023-06-29T18:50:13.968932",
+    "data": [
+        {
+            "Arrive": [
                 {
-                    "Arrive": [
-                        {
-                            "line": "27",
-                            "stop": "72",
-                            "isHead": "False",
-                            "destination": "PLAZA CASTILLA",
-                            "deviation": 0,
-                            "bus": 528,
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [-3.69295437941713, 40.41338567959594],
-                            },
-                            "estimateArrive": 233,
-                            "DistanceBus": 674,
-                            "positionTypeBus": "0",
-                        },
-                        {
-                            "line": "27",
-                            "stop": "72",
-                            "isHead": "False",
-                            "destination": "PLAZA CASTILLA",
-                            "deviation": 0,
-                            "bus": 515,
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [-3.6950488592789865, 40.40415447211869],
-                            },
-                            "estimateArrive": 556,
-                            "DistanceBus": 1777,
-                            "positionTypeBus": "0",
-                        },
-                    ],
-                    "StopInfo": [],
-                    "ExtraInfo": [],
-                    "Incident": {},
-                }
-            ],
-        }
-
-        mock_response = requests.Response()
-        mock_response.status_code = 200
-        mock_response.json = lambda: response_data
-        mock_post.return_value = mock_response
-
-        api_emt.update_arrival_times(72, "27")
-
-        expected_arrival_time = {"27": {"arrival": 3, "next_arrival": 9}}
-
-        assert api_emt._arrival_time == expected_arrival_time
-
-    @patch.object(requests, "post")
-    def test_update_arrival_times_no_next_bus(self, mock_post, api_emt) -> None:
-        """Test updating arrival times when there is no next bus."""
-        response_data = {
-            "code": "00",
-            "description": "Data recovered OK (lapsed: 1155 millsecs)",
-            "datetime": "2023-06-29T18:50:13.968932",
-            "data": [
+                    "line": "27",
+                    "stop": "72",
+                    "isHead": "False",
+                    "destination": "PLAZA CASTILLA",
+                    "deviation": 0,
+                    "bus": 528,
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-3.69295437941713, 40.41338567959594],
+                    },
+                    "estimateArrive": 233,
+                    "DistanceBus": 674,
+                    "positionTypeBus": "0",
+                },
                 {
-                    "Arrive": [
-                        {
-                            "line": "27",
-                            "stop": "72",
-                            "isHead": "False",
-                            "destination": "PLAZA CASTILLA",
-                            "deviation": 0,
-                            "bus": 528,
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [-3.69295437941713, 40.41338567959594],
-                            },
-                            "estimateArrive": 233,
-                            "DistanceBus": 674,
-                            "positionTypeBus": "0",
-                        },
-                    ],
-                    "StopInfo": [],
-                    "ExtraInfo": [],
-                    "Incident": {},
-                }
+                    "line": "27",
+                    "stop": "72",
+                    "isHead": "False",
+                    "destination": "PLAZA CASTILLA",
+                    "deviation": 0,
+                    "bus": 515,
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-3.6950488592789865, 40.40415447211869],
+                    },
+                    "estimateArrive": 556,
+                    "DistanceBus": 1777,
+                    "positionTypeBus": "0",
+                },
             ],
+            "StopInfo": [],
+            "ExtraInfo": [],
+            "Incident": {},
         }
+    ],
+}
 
-        mock_response = requests.Response()
-        mock_response.status_code = 200
-        mock_response.json = lambda: response_data
-        mock_post.return_value = mock_response
+INVALID_STOP_RESPONSE = {
+    "code": "80",
+    "description": [
+        {"ES": "Parada no disponible actualmente o inexistente"},
+        {"EN": "Bus Stop disabled or not exists"},
+    ],
+    "datetime": "2023-06-29T21:34:48.886037",
+    "data": [{"Arrive": [], "StopInfo": [], "ExtraInfo": [], "Incident": {}}],
+}
 
-        api_emt.update_arrival_times(72, "27")
+INVALID_LINE_RESPONSE = {
+    "code": "01",
+    "description": "No estimations found (lapsed: 123 millsecs)",
+    "datetime": "2023-06-29T21:31:44.799862",
+    "data": [{"Arrive": [], "StopInfo": [], "ExtraInfo": [], "Incident": {}}],
+}
 
-        expected_arrival_time = {"27": {"arrival": 3, "next_arrival": "-"}}
 
-        assert api_emt._arrival_time == expected_arrival_time
+def make_request_mock(url, headers=None, data=None, method="POST"):
+    """Mock the API request."""
+    if url == "https://openapi.emtmadrid.es/v1/mobilitylabs/user/login/":
+        if headers["email"] == "invalid@email.com":
+            return INVALID_USER_RESPONSE
+        if headers["password"] == "invalid_password":
+            return INVALID_PASSWORD_RESPONSE
+        return VALID_LOGIN_RESPONSE
+    if (
+        url
+        == f"https://openapi.emtmadrid.es/v2/transport/busemtmad/stops/{data['stopId']}/arrives/{data['lineArrive']}/"
+    ):
+        if data["stopId"] == 123456:
+            return INVALID_STOP_RESPONSE
+        if data["lineArrive"] == "invalid_line":
+            return INVALID_LINE_RESPONSE
+        return VALID_STOP_AND_LINE_RESPONSE
+    raise ValueError("Invalid URL")
 
-    @patch.object(requests, "post")
-    def test_update_arrival_times_stop_not_exists(self, mock_post, api_emt) -> None:
-        """Test updating arrival times when the stop does not exist."""
-        response_data = {
-            "code": "80",
-            "description": [
-                {"ES": "Parada no disponible actualmente o inexistente"},
-                {"EN": "Bus Stop disabled or not exists"},
-            ],
-            "datetime": "2023-06-29T21:34:48.886037",
-            "data": [{"Arrive": [], "StopInfo": [], "ExtraInfo": [], "Incident": {}}],
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_valid_config(setup_component, hass: HomeAssistant) -> None:
+    """Test the configuration of the emt_madrid component with valid settings."""
+
+    valid_config = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@mail.com",
+            "password": "password123",
+            "stop": 72,
+            "line": "27",
+            "name": "Bus 27 en Cibeles",
+            "icon": "mdi:fountain",
         }
+    }
+    assert await async_setup_component(hass, "sensor", valid_config)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.bus_27_en_cibeles")
 
-        mock_response = requests.Response()
-        mock_response.status_code = 200
-        mock_response.json = lambda: response_data
-        mock_post.return_value = mock_response
+    assert state.state == "3"
+    assert state.attributes["next_bus"] == 9
+    assert state.attributes["bus_stop_id"] == 72
+    assert state.attributes["bus_line"] == "27"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:fountain"
 
-        api_emt.update_arrival_times(72, "27")
 
-        expected_arrival_time = {"27": {"arrival": "-", "next_arrival": "-"}}
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_valid_basic_config(setup_component, hass: HomeAssistant) -> None:
+    """Test the basic configuration of the emt_madrid component with valid settings."""
 
-        assert api_emt._arrival_time == expected_arrival_time
-
-    @patch.object(requests, "post")
-    def test_update_arrival_times_line_not_found(self, mock_post, api_emt):
-        """Test updating arrival times when the line is not found."""
-        response_data = {
-            "code": "01",
-            "description": "No estimations found (lapsed: 123 millsecs)",
-            "datetime": "2023-06-29T21:31:44.799862",
-            "data": [{"Arrive": [], "StopInfo": [], "ExtraInfo": [], "Incident": {}}],
+    valid_config = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@mail.com",
+            "password": "password123",
+            "stop": 72,
+            "line": "27",
         }
+    }
+    assert await async_setup_component(hass, "sensor", valid_config)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.72_27")
 
-        mock_response = requests.Response()
-        mock_response.status_code = 200
-        mock_response.json = lambda: response_data
-        mock_post.return_value = mock_response
+    assert state.state == "3"
+    assert state.attributes["next_bus"] == 9
+    assert state.attributes["bus_stop_id"] == 72
+    assert state.attributes["bus_line"] == "27"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:bus"
 
-        api_emt.update_arrival_times(72, "27")
 
-        expected_arrival_time = {"27": {"arrival": "-", "next_arrival": "-"}}
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_user(setup_component, hass: HomeAssistant) -> None:
+    """Test the configuration of the emt_madrid component with an invalid user."""
 
-        assert api_emt._arrival_time == expected_arrival_time
+    invalid_user = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "invalid@email.com",
+            "password": "password123",
+            "stop": 72,
+            "line": "27",
+            "name": "Bus 27 en Cibeles",
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", invalid_user)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.bus_27_en_cibeles")
+
+    assert state.state == "unknown"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["bus_stop_id"] == 72
+    assert state.attributes["bus_line"] == "27"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:fountain"
+
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_password(setup_component, hass: HomeAssistant) -> None:
+    """Test the configuration of the emt_madrid component with an invalid password."""
+
+    invalid_user = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@email.com",
+            "password": "invalid_password",
+            "stop": 72,
+            "line": "27",
+            "name": "Bus 27 en Cibeles",
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", invalid_user)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.bus_27_en_cibeles")
+
+    assert state.state == "unknown"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["bus_stop_id"] == 72
+    assert state.attributes["bus_line"] == "27"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:fountain"
+
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_stop(setup_component, hass: HomeAssistant) -> None:
+    """Test the configuration of the emt_madrid component with an invalid bus stop."""
+
+    invalid_user = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@email.com",
+            "password": "password123",
+            "stop": 123456,
+            "line": "27",
+            "name": "Bus 27 en Cibeles",
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", invalid_user)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.bus_27_en_cibeles")
+
+    assert state.state == "unknown"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["bus_stop_id"] == 123456
+    assert state.attributes["bus_line"] == "27"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:fountain"
+
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_line(setup_component, hass: HomeAssistant) -> None:
+    """Test the configuration of the emt_madrid component with an invalid bus line."""
+
+    invalid_user = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@email.com",
+            "password": "password123",
+            "stop": 72,
+            "line": "invalid_line",
+            "name": "Bus 27 en Cibeles",
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", invalid_user)
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.bus_27_en_cibeles")
+
+    assert state.state == "unknown"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["bus_stop_id"] == 72
+    assert state.attributes["bus_line"] == "invalid_line"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:fountain"

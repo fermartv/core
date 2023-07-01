@@ -1,4 +1,4 @@
-"""Support for EMT Madrid to get next departures."""
+"""Support for EMT Madrid (Empresa Municipal de Transportes de Madrid) to get next departures."""
 from collections.abc import Mapping
 import json
 import logging
@@ -25,13 +25,13 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 ATTRIBUTION = "Data provided by EMT Madrid MobilityLabs"
 
-CONF_STOP = "stop"
-CONF_LINE = "line"
+CONF_BUS_STOP = "stop"
+CONF_BUS_LINE = "line"
 
-DEFAULT_NAME = "Next bus"
+DEFAULT_NAME = "EMT Madrid bus"
 DEFAULT_ICON = "mdi:bus"
 
-ATTR_NEXT_UP = "later_bus"
+ATTR_NEXT_UP = "next_bus"
 ATTR_BUS_STOP = "bus_stop_id"
 ATTR_BUS_LINE = "bus_line"
 
@@ -43,9 +43,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_EMAIL): cv.string,
         vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(CONF_STOP): cv.positive_int,
-        vol.Required(CONF_LINE): cv.string,
-        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Required(CONF_BUS_STOP): cv.positive_int,
+        vol.Required(CONF_BUS_LINE): cv.string,
+        vol.Optional(CONF_NAME): cv.string,
         vol.Optional(CONF_ICON, default=DEFAULT_ICON): cv.string,
     }
 )
@@ -76,8 +76,11 @@ class APIEMT:
         url = f"{BASE_URL}{ENDPOINT_ARRIVAL_TIME}{stop}/arrives/{line}/"
         headers = {"accessToken": self._token}
         data = {"stopId": stop, "lineArrive": line, "Text_EstimationsRequired_YN": "Y"}
-        response = self._make_request(url, headers=headers, data=data, method="POST")
-        self._parse_arrival_times(response, line)
+        if self._token != "Invalid token":
+            response = self._make_request(
+                url, headers=headers, data=data, method="POST"
+            )
+            self._parse_arrival_times(response, line)
 
     def get_arrival_time(self, line, bus):
         """Retrieve the arrival time for the specified bus line and bus number."""
@@ -106,33 +109,34 @@ class APIEMT:
         """Extract the access token from the API response."""
         try:
             return response["data"][0]["accessToken"]
-        except (KeyError, IndexError) as e:
-            raise ConnectionError("Unable to get the token from the API") from e
+        except (KeyError, IndexError):
+            _LOGGER.error("Invalid email or password")
+            return "Invalid token"
 
     def _parse_arrival_times(self, response, target_line):
         """Parse the arrival times from the API response."""
-        arrival_data = {}
+        arrival_time = {}
         try:
             if response["code"] == "80":
                 _LOGGER.warning("Bus Stop disabled or does not exist")
             else:
                 for bus in response["data"][0]["Arrive"]:
                     estimated_time = math.trunc(bus["estimateArrive"] / 60)
-                    estimated_time = min(estimated_time, 30)
+                    estimated_time = min(estimated_time, 45)
                     line = bus["line"]
-                    if line not in arrival_data:
-                        arrival_data[line] = {"arrival": estimated_time}
-                    elif "next_arrival" not in arrival_data[line]:
-                        arrival_data[line]["next_arrival"] = estimated_time
+                    if line not in arrival_time:
+                        arrival_time[line] = {"arrival": estimated_time}
+                    elif "next_arrival" not in arrival_time[line]:
+                        arrival_time[line]["next_arrival"] = estimated_time
         except (KeyError, IndexError) as e:
             raise ValueError("Unable to get the arrival times from the API") from e
 
-        if target_line not in arrival_data:
-            arrival_data[target_line] = {"arrival": "-"}
-        if "next_arrival" not in arrival_data[target_line]:
-            arrival_data[target_line]["next_arrival"] = "-"
+        if target_line not in arrival_time:
+            arrival_time[target_line] = {"arrival": None}
+        if "next_arrival" not in arrival_time[target_line]:
+            arrival_time[target_line]["next_arrival"] = None
 
-        self._arrival_time = arrival_data
+        self._arrival_time = arrival_time
 
 
 def setup_platform(
@@ -144,9 +148,12 @@ def setup_platform(
     """Set up the sensor platform."""
     email = config.get(CONF_EMAIL)
     password = config.get(CONF_PASSWORD)
-    bus_stop = config.get(CONF_STOP)
-    line = config.get(CONF_LINE)
-    name = config.get(CONF_NAME)
+    bus_stop = config.get(CONF_BUS_STOP)
+    line = config.get(CONF_BUS_LINE)
+    if config.get(CONF_NAME):
+        name = config.get(CONF_NAME)
+    else:
+        name = f"{bus_stop} - {line}"
     icon = config.get(CONF_ICON)
     api_emt = APIEMT(email, password)
     api_emt.authenticate()
@@ -165,8 +172,6 @@ class BusStopSensor(Entity):
         self._bus_line = line
         self._icon = icon
         self._name = name
-        if self._name == DEFAULT_NAME:
-            self._name = f"Next {self._bus_line} at {self._bus_stop}"
 
     @property
     def name(self) -> str:
