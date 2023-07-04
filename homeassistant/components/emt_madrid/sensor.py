@@ -1,11 +1,7 @@
 """Support for EMT Madrid (Empresa Municipal de Transportes de Madrid) to get next departures."""
-from collections.abc import Mapping
-import json
-import logging
-import math
+
 from typing import Any
 
-import requests
 import voluptuous as vol
 
 from homeassistant.components.sensor import PLATFORM_SCHEMA
@@ -23,152 +19,52 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
+from .emt_madrid import APIEMT
+
 ATTRIBUTION = "Data provided by EMT Madrid MobilityLabs"
 
-CONF_BUS_STOP = "stop"
-CONF_BUS_LINE = "line"
+CONF_STOP_ID = "stop"
+CONF_BUS_LINES = "lines"
 
 DEFAULT_NAME = "EMT Madrid bus"
 DEFAULT_ICON = "mdi:bus"
 
 ATTR_NEXT_UP = "next_bus"
-ATTR_BUS_STOP = "bus_stop_id"
-ATTR_BUS_LINE = "bus_line"
+ATTR_STOP_ID = "stop_id"
+ATTR_STOP_NAME = "stop_name"
+ATTR_STOP_ADDRESS = "stop_address"
+ATTR_STOP_LOCATION = "stop_location"
+ATTR_LINE = "line"
+ATTR_LINE_DESTINATION = "destination"
+ATTR_LINE_ORIGIN = "origin"
+ATTR_LINE_START_TIME = "start_time"
+ATTR_LINE_END_TIME = "end_time"
+ATTR_LINE_MAX_FREQ = "max_frequency"
+ATTR_LINE_MIN_FREQ = "min_frequency"
+ATTR_LINE_DISTANCE = "distance"
 
-BASE_URL = "https://openapi.emtmadrid.es/"
-ENDPOINT_LOGIN = "v1/mobilitylabs/user/login/"
-ENDPOINT_ARRIVAL_TIME = "v2/transport/busemtmad/stops/"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_EMAIL): cv.string,
         vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(CONF_BUS_STOP): cv.positive_int,
-        vol.Required(CONF_BUS_LINE): cv.string,
+        vol.Required(CONF_STOP_ID): cv.positive_int,
+        vol.Required(CONF_BUS_LINES): cv.string,
         vol.Optional(CONF_NAME): cv.string,
         vol.Optional(CONF_ICON, default=DEFAULT_ICON): cv.string,
+        # vol.Optional(CONF_BUS_LINES, default=[]): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
-_LOGGER = logging.getLogger(__name__)
 
+class BusLineSensor(Entity):
+    """Implementation of an EMT-Madrid bus line sensor."""
 
-class APIEMT:
-    """Support for EMT Madrid to get next departures."""
-
-    def __init__(self, user, password) -> None:
-        """Initialize an instance of the APIEMT class."""
-        self._user = user
-        self._password = password
-        self._token = None
-        self._arrival_time: dict[str, dict[str, int]] = {}
-
-    def authenticate(self):
-        """Authenticate the user using the provided credentials."""
-        headers = {"email": self._user, "password": self._password}
-        url = f"{BASE_URL}{ENDPOINT_LOGIN}"
-        response = self._make_request(url, headers=headers, method="GET")
-        self._token = self._extract_token(response)
-        return self._token
-
-    def update_arrival_times(self, stop, line):
-        """Update the arrival times for the specified bus stop and line."""
-        url = f"{BASE_URL}{ENDPOINT_ARRIVAL_TIME}{stop}/arrives/{line}/"
-        headers = {"accessToken": self._token}
-        data = {"stopId": stop, "lineArrive": line, "Text_EstimationsRequired_YN": "Y"}
-        if self._token != "Invalid token":
-            response = self._make_request(
-                url, headers=headers, data=data, method="POST"
-            )
-            self._parse_arrival_times(response, line)
-
-    def get_arrival_time(self, line, bus):
-        """Retrieve the arrival time for the specified bus line and bus number."""
-        if line in self._arrival_time and bus in self._arrival_time[line]:
-            return self._arrival_time[line][bus]
-        return None
-
-    def _make_request(self, url, headers=None, data=None, method="POST"):
-        """Send an HTTP request to the specified URL."""
-        try:
-            if method == "POST":
-                response = requests.post(
-                    url, headers=headers, data=json.dumps(data), timeout=10
-                )
-            elif method == "GET":
-                response = requests.get(url, headers=headers, timeout=10)
-            else:
-                raise ValueError(f"Invalid HTTP method: {method}")
-
-            response.raise_for_status()
-            return response.json()
-        except (requests.exceptions.RequestException, ValueError) as e:
-            raise (f"Request error: {e}")
-
-    def _extract_token(self, response):
-        """Extract the access token from the API response."""
-        try:
-            return response["data"][0]["accessToken"]
-        except (KeyError, IndexError):
-            _LOGGER.error("Invalid email or password")
-            return "Invalid token"
-
-    def _parse_arrival_times(self, response, target_line):
-        """Parse the arrival times from the API response."""
-        arrival_time = {}
-        try:
-            if response["code"] == "80":
-                _LOGGER.warning("Bus Stop disabled or does not exist")
-            else:
-                for bus in response["data"][0]["Arrive"]:
-                    estimated_time = math.trunc(bus["estimateArrive"] / 60)
-                    estimated_time = min(estimated_time, 45)
-                    line = bus["line"]
-                    if line not in arrival_time:
-                        arrival_time[line] = {"arrival": estimated_time}
-                    elif "next_arrival" not in arrival_time[line]:
-                        arrival_time[line]["next_arrival"] = estimated_time
-        except (KeyError, IndexError) as e:
-            raise ValueError("Unable to get the arrival times from the API") from e
-
-        if target_line not in arrival_time:
-            arrival_time[target_line] = {"arrival": None}
-        if "next_arrival" not in arrival_time[target_line]:
-            arrival_time[target_line]["next_arrival"] = None
-
-        self._arrival_time = arrival_time
-
-
-def setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
-) -> None:
-    """Set up the sensor platform."""
-    email = config.get(CONF_EMAIL)
-    password = config.get(CONF_PASSWORD)
-    bus_stop = config.get(CONF_BUS_STOP)
-    line = config.get(CONF_BUS_LINE)
-    if config.get(CONF_NAME):
-        name = config.get(CONF_NAME)
-    else:
-        name = f"{bus_stop} - {line}"
-    icon = config.get(CONF_ICON)
-    api_emt = APIEMT(email, password)
-    api_emt.authenticate()
-    api_emt.update_arrival_times(bus_stop, line)
-    add_entities([BusStopSensor(api_emt, bus_stop, line, name, icon)])
-
-
-class BusStopSensor(Entity):
-    """Implementation of an EMT-Madrid bus stop sensor."""
-
-    def __init__(self, api_emt: APIEMT, bus_stop, line, name, icon) -> None:
+    def __init__(self, api_emt: APIEMT, stop_id, line, name, icon) -> None:
         """Initialize the sensor."""
         self._state = None
         self._api_emt = api_emt
-        self._bus_stop = bus_stop
+        self._stop_id = stop_id
         self._bus_line = line
         self._icon = icon
         self._name = name
@@ -181,7 +77,8 @@ class BusStopSensor(Entity):
     @property
     def state(self) -> int:
         """Return the state of the sensor."""
-        return self._api_emt.get_arrival_time(self._bus_line, "arrival")
+        arrival_time = self._api_emt.get_arrival_time(self._bus_line)
+        return arrival_time[0]
 
     @property
     def unit_of_measurement(self) -> str:
@@ -194,17 +91,63 @@ class BusStopSensor(Entity):
         return self._icon
 
     @property
-    def extra_state_attributes(self) -> Mapping[str, Any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return the device state attributes."""
+        arrival_time = self._api_emt.get_arrival_time(self._bus_line)
+        stop_info = self._api_emt.get_stop_info()
+        lines_info = stop_info.get("lines")
+        line = lines_info.get(self._bus_line)
+        distance = self._api_emt.get_distance(self._bus_line)
+
         return {
-            ATTR_NEXT_UP: self._api_emt.get_arrival_time(
-                self._bus_line, "next_arrival"
-            ),
-            ATTR_BUS_STOP: self._bus_stop,
-            ATTR_BUS_LINE: self._bus_line,
+            ATTR_NEXT_UP: arrival_time[1],
+            ATTR_LINE: self._bus_line,
+            ATTR_LINE_DISTANCE: distance,
+            ATTR_LINE_DESTINATION: line.get("destination"),
+            ATTR_LINE_ORIGIN: line.get("origin"),
+            ATTR_LINE_START_TIME: line.get("start_time"),
+            ATTR_LINE_END_TIME: line.get("end_time"),
+            ATTR_LINE_MAX_FREQ: line.get("max_freq"),
+            ATTR_LINE_MIN_FREQ: line.get("min_freq"),
+            ATTR_STOP_ID: self._stop_id,
+            ATTR_STOP_NAME: stop_info.get("bus_stop_name"),
+            ATTR_STOP_ADDRESS: stop_info.get("bus_stop_address"),
             ATTR_ATTRIBUTION: ATTRIBUTION,
         }
 
     def update(self) -> None:
         """Fetch new state data for the sensor."""
-        self._api_emt.update_arrival_times(self._bus_stop, self._bus_line)
+        self._api_emt.update_arrival_times(self._stop_id)
+
+
+def get_api_emt_instance(config: ConfigType) -> APIEMT:
+    """Create an instance of the APIEMT class with the provided configuration."""
+    email = config.get(CONF_EMAIL)
+    password = config.get(CONF_PASSWORD)
+    stop_id = config.get(CONF_STOP_ID)
+    api_emt = APIEMT(email, password, stop_id)
+    api_emt.authenticate()
+    api_emt.update_stop_info(stop_id)
+    return api_emt
+
+
+def create_bus_line_sensor(api_emt: APIEMT, config: ConfigType) -> BusLineSensor:
+    """Create a BusLineSensor instance with the provided APIEMT instance and configuration."""
+    stop_id = config.get(CONF_STOP_ID)
+    line = config.get(CONF_BUS_LINES)
+    name = config.get(CONF_NAME, f"{stop_id} - {line}")
+    icon = config.get(CONF_ICON)
+    api_emt.update_arrival_times(stop_id)
+    return BusLineSensor(api_emt, stop_id, line, name, icon)
+
+
+def setup_platform(
+    hass: HomeAssistant,
+    config: ConfigType,
+    add_entities: AddEntitiesCallback,
+    discovery_info: DiscoveryInfoType | None = None,
+) -> None:
+    """Set up the sensor platform."""
+    api_emt = get_api_emt_instance(config)
+    bus_line_sensor = create_bus_line_sensor(api_emt, config)
+    add_entities([bus_line_sensor])
