@@ -22,7 +22,7 @@ class APIEMT:
     update arrival times, and access the retrieved data.
     """
 
-    def __init__(self, user, password, stop_id):
+    def __init__(self, user, password, stop_id) -> None:
         """Initialize an instance of the APIEMT class."""
         self._user = user
         self._password = password
@@ -64,7 +64,7 @@ class APIEMT:
     def get_stop_info(
         self,
     ):
-        """Retrieve all the lines and information from the bus stop."""
+        """Retrieve all the information from the bus stop."""
         return self._stop_info
 
     def _parse_stop_info(self, response):
@@ -128,13 +128,28 @@ class APIEMT:
             arrivals.append(None)
         return arrivals
 
-    def get_distance(self, line):
-        """Retrieve bus distance to stop in metres for the specified bus line."""
-        try:
-            arrivals = self._stop_info["lines"][line].get("distance")
-        except KeyError:
-            return [None]
-        return arrivals
+    def get_line_info(self, line):
+        """Retrieve the information for a specific line."""
+        lines = self._stop_info["lines"]
+        if line in lines:
+            line_info = lines.get(line)
+            if "distance" in line_info and len(line_info["distance"]) == 0:
+                line_info["distance"].append(None)
+            return line_info
+
+        _LOGGER.warning(f"The bus line {line} does not exist at this stop.")
+        line_info = {
+            "destination": None,
+            "origin": None,
+            "max_freq": None,
+            "min_freq": None,
+            "start_time": None,
+            "end_time": None,
+            "day_type": None,
+            "distance": [None],
+            "arrivals": [None, None],
+        }
+        return line_info
 
     def _parse_arrivals(self, response):
         """Parse the arrival times and distance from the API response."""

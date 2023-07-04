@@ -3,10 +3,10 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
-
-# TODO: Move response jsons to fixtures
 
 VALID_LOGIN = {
     "code": "01",
@@ -75,6 +75,21 @@ VALID_STOP_AND_LINE_ARRIVALS = {
                     "positionTypeBus": "0",
                 },
                 {
+                    "line": "5",
+                    "stop": "72",
+                    "isHead": "False",
+                    "destination": "CHAMARTIN",
+                    "deviation": 0,
+                    "bus": 51,
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-3.6950488592789854, 40.40415447211867],
+                    },
+                    "estimateArrive": 345,
+                    "DistanceBus": 1777,
+                    "positionTypeBus": "0",
+                },
+                {
                     "line": "27",
                     "stop": "72",
                     "isHead": "False",
@@ -85,7 +100,7 @@ VALID_STOP_AND_LINE_ARRIVALS = {
                         "type": "Point",
                         "coordinates": [-3.6950488592789865, 40.40415447211869],
                     },
-                    "estimateArrive": 556,
+                    "estimateArrive": 1556,
                     "DistanceBus": 1777,
                     "positionTypeBus": "0",
                 },
@@ -137,18 +152,6 @@ VALID_STOP_INFO = {
                             "dayType": "FE",
                         },
                         {
-                            "line": "014",
-                            "label": "14",
-                            "direction": "B",
-                            "maxFreq": "36",
-                            "minFreq": "17",
-                            "headerA": "CONDE DE CASAL",
-                            "headerB": "PIO XII",
-                            "startTime": "07:00",
-                            "stopTime": "23:36",
-                            "dayType": "FE",
-                        },
-                        {
                             "line": "027",
                             "label": "27",
                             "direction": "B",
@@ -158,102 +161,6 @@ VALID_STOP_INFO = {
                             "headerB": "PLAZA CASTILLA",
                             "startTime": "07:00",
                             "stopTime": "00:01",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "037",
-                            "label": "37",
-                            "direction": "A",
-                            "maxFreq": "30",
-                            "minFreq": "18",
-                            "headerA": "CUATRO CAMINOS",
-                            "headerB": "PUENTE VALLECAS",
-                            "startTime": "07:00",
-                            "stopTime": "23:30",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "045",
-                            "label": "45",
-                            "direction": "B",
-                            "maxFreq": "35",
-                            "minFreq": "14",
-                            "headerA": "LEGAZPI",
-                            "headerB": "REINA VICTORIA",
-                            "startTime": "07:00",
-                            "stopTime": "23:30",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "053",
-                            "label": "53",
-                            "direction": "B",
-                            "maxFreq": "30",
-                            "minFreq": "13",
-                            "headerA": "SOL/SEVILLA",
-                            "headerB": "ARTURO SORIA",
-                            "startTime": "07:00",
-                            "stopTime": "22:55",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "150",
-                            "label": "150",
-                            "direction": "B",
-                            "maxFreq": "25",
-                            "minFreq": "16",
-                            "headerA": "SOL/SEVILLA",
-                            "headerB": "VIRGEN CORTIJO",
-                            "startTime": "07:00",
-                            "stopTime": "22:45",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "363",
-                            "label": "C03",
-                            "direction": "B",
-                            "maxFreq": "25",
-                            "minFreq": "13",
-                            "headerA": "PUERTA TOLEDO",
-                            "headerB": "ARGÜELLES",
-                            "startTime": "07:00",
-                            "stopTime": "23:00",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "522",
-                            "label": "N22",
-                            "direction": "B",
-                            "maxFreq": "60",
-                            "minFreq": "18",
-                            "headerA": "CIBELES",
-                            "headerB": "BARRIO DEL PILAR",
-                            "startTime": "23:40",
-                            "stopTime": "05:50",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "524",
-                            "label": "N24",
-                            "direction": "B",
-                            "maxFreq": "60",
-                            "minFreq": "20",
-                            "headerA": "CIBELES",
-                            "headerB": "LAS TABLAS",
-                            "startTime": "23:40",
-                            "stopTime": "05:50",
-                            "dayType": "FE",
-                        },
-                        {
-                            "line": "525",
-                            "label": "N25",
-                            "direction": "A",
-                            "maxFreq": "60",
-                            "minFreq": "20",
-                            "headerA": "ALONSO MARTINEZ",
-                            "headerB": "VILLA VALLECAS",
-                            "startTime": "00:00",
-                            "stopTime": "05:10",
                             "dayType": "FE",
                         },
                         {
@@ -317,147 +224,182 @@ def make_request_mock(url, headers=None, data=None, method="POST"):
 async def test_valid_config(setup_component, hass: HomeAssistant) -> None:
     """Test the configuration of the emt_madrid component with valid settings."""
 
-    valid_config = {
+    config = {
         "sensor": {
             "platform": "emt_madrid",
             "email": "test@mail.com",
             "password": "password123",
             "stop": 72,
-            "lines": "27",
-            "name": "Bus 27 en Cibeles",
+            "lines": ["27"],
             "icon": "mdi:fountain",
         }
     }
-    assert await async_setup_component(hass, "sensor", valid_config)
+    assert await async_setup_component(hass, "sensor", config)
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.bus_27_en_cibeles")
+    state = hass.states.get("sensor.bus_27_cibeles_casa_de_america")
 
     assert state.state == "3"
-    assert state.attributes["next_bus"] == 9
+    assert state.attributes["next_bus"] == 25
     assert state.attributes["stop_id"] == 72
     assert state.attributes["line"] == "27"
     assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
     assert state.attributes["unit_of_measurement"] == "min"
     assert state.attributes["icon"] == "mdi:fountain"
+    assert state.attributes["distance"] == 674
+    assert state.attributes["destination"] == "PLAZA CASTILLA"
+    assert state.attributes["origin"] == "EMBAJADORES"
+    assert state.attributes["start_time"] == "07:00"
+    assert state.attributes["end_time"] == "00:01"
+    assert state.attributes["max_frequency"] == 25
+    assert state.attributes["min_frequency"] == 11
+    assert state.attributes["stop_name"] == "Cibeles-Casa de América"
+    assert state.attributes["stop_address"] == "Pº de Recoletos, 2 (Pza. de Cibeles)"
 
 
 @patch(
     "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
     side_effect=make_request_mock,
 )
-async def test_valid_basic_config(setup_component, hass: HomeAssistant) -> None:
+async def test_valid_config_no_lines_specified(
+    setup_component, hass: HomeAssistant
+) -> None:
     """Test the basic configuration of the emt_madrid component with valid settings."""
 
-    valid_config = {
+    config = {
         "sensor": {
             "platform": "emt_madrid",
             "email": "test@mail.com",
             "password": "password123",
             "stop": 72,
-            "lines": "27",
         }
     }
-    assert await async_setup_component(hass, "sensor", valid_config)
+    assert await async_setup_component(hass, "sensor", config)
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.72_27")
+    state = hass.states.get("sensor.bus_27_cibeles_casa_de_america")
 
     assert state.state == "3"
-    assert state.attributes["next_bus"] == 9
+    assert state.attributes["next_bus"] == 25
     assert state.attributes["stop_id"] == 72
     assert state.attributes["line"] == "27"
     assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
     assert state.attributes["unit_of_measurement"] == "min"
     assert state.attributes["icon"] == "mdi:bus"
+    assert state.attributes["distance"] == 674
+    assert state.attributes["destination"] == "PLAZA CASTILLA"
+    assert state.attributes["origin"] == "EMBAJADORES"
+    assert state.attributes["start_time"] == "07:00"
+    assert state.attributes["end_time"] == "00:01"
+    assert state.attributes["max_frequency"] == 25
+    assert state.attributes["min_frequency"] == 11
+    assert state.attributes["stop_name"] == "Cibeles-Casa de América"
+    assert state.attributes["stop_address"] == "Pº de Recoletos, 2 (Pza. de Cibeles)"
 
+    state = hass.states.get("sensor.bus_5_cibeles_casa_de_america")
 
-# @patch(
-#     "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
-#     side_effect=make_request_mock,
-# )
-# async def test_invalid_user(setup_component, hass: HomeAssistant) -> None:
-#     """Test the configuration of the emt_madrid component with an invalid user."""
+    assert state.state == "5"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["stop_id"] == 72
+    assert state.attributes["line"] == "5"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:bus"
+    assert state.attributes["distance"] == 1777
+    assert state.attributes["destination"] == "CHAMARTIN"
+    assert state.attributes["origin"] == "SOL/SEVILLA"
+    assert state.attributes["start_time"] == "07:00"
+    assert state.attributes["end_time"] == "22:58"
+    assert state.attributes["max_frequency"] == 33
+    assert state.attributes["min_frequency"] == 16
+    assert state.attributes["stop_name"] == "Cibeles-Casa de América"
+    assert state.attributes["stop_address"] == "Pº de Recoletos, 2 (Pza. de Cibeles)"
 
-#     invalid_user = {
-#         "sensor": {
-#             "platform": "emt_madrid",
-#             "email": "invalid@email.com",
-#             "password": "password123",
-#             "stop": 72,
-#             "lines": "27",
-#             "name": "Bus 27 en Cibeles",
-#             "icon": "mdi:fountain",
-#         }
-#     }
-#     assert await async_setup_component(hass, "sensor", invalid_user)
-#     await hass.async_block_till_done()
-#     state = hass.states.get("sensor.bus_27_en_cibeles")
+    state = hass.states.get("sensor.bus_n26_cibeles_casa_de_america")
 
-#     assert state.state == "unknown"
-#     assert state.attributes["next_bus"] is None
-#     assert state.attributes["stop_id"] == 72
-#     assert state.attributes["line"] == "27"
-#     assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
-#     assert state.attributes["unit_of_measurement"] == "min"
-#     assert state.attributes["icon"] == "mdi:fountain"
-
-
-# @patch(
-#     "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
-#     side_effect=make_request_mock,
-# )
-# async def test_invalid_password(setup_component, hass: HomeAssistant) -> None:
-#     """Test the configuration of the emt_madrid component with an invalid password."""
-
-#     invalid_user = {
-#         "sensor": {
-#             "platform": "emt_madrid",
-#             "email": "test@email.com",
-#             "password": "invalid_password",
-#             "stop": 72,
-#             "lines": "27",
-#             "name": "Bus 27 en Cibeles",
-#             "icon": "mdi:fountain",
-#         }
-#     }
-#     assert await async_setup_component(hass, "sensor", invalid_user)
-#     await hass.async_block_till_done()
-#     state = hass.states.get("sensor.bus_27_en_cibeles")
-
-#     assert state.state == "unknown"
-#     assert state.attributes["next_bus"] is None
-#     assert state.attributes["stop_id"] == 72
-#     assert state.attributes["line"] == "27"
-#     assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
-#     assert state.attributes["unit_of_measurement"] == "min"
-#     assert state.attributes["icon"] == "mdi:fountain"
+    assert state.state == "unknown"
+    assert state.attributes["next_bus"] is None
+    assert state.attributes["stop_id"] == 72
+    assert state.attributes["line"] == "N26"
+    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
+    assert state.attributes["unit_of_measurement"] == "min"
+    assert state.attributes["icon"] == "mdi:bus"
+    assert state.attributes["distance"] is None
+    assert state.attributes["destination"] == "ALONSO MARTINEZ"
+    assert state.attributes["origin"] == "ALUCHE"
+    assert state.attributes["start_time"] == "00:00"
+    assert state.attributes["end_time"] == "05:10"
+    assert state.attributes["max_frequency"] == 60
+    assert state.attributes["min_frequency"] == 20
+    assert state.attributes["stop_name"] == "Cibeles-Casa de América"
+    assert state.attributes["stop_address"] == "Pº de Recoletos, 2 (Pza. de Cibeles)"
 
 
 @patch(
     "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
     side_effect=make_request_mock,
 )
-async def test_invalid_stop(setup_component, hass: HomeAssistant) -> None:
+async def test_invalid_user(
+    setup_component, hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test the configuration of the emt_madrid component with an invalid user."""
+
+    config = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "invalid@email.com",
+            "password": "password123",
+            "stop": 72,
+            "lines": ["27"],
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", config)
+    await hass.async_block_till_done()
+    assert "Invalid email or password" in caplog.text
+
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_password(
+    setup_component, hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test the configuration of the emt_madrid component with an invalid password."""
+
+    config = {
+        "sensor": {
+            "platform": "emt_madrid",
+            "email": "test@email.com",
+            "password": "invalid_password",
+            "stop": 72,
+            "lines": ["27"],
+            "icon": "mdi:fountain",
+        }
+    }
+    assert await async_setup_component(hass, "sensor", config)
+    await hass.async_block_till_done()
+    assert "Invalid email or password" in caplog.text
+
+
+@patch(
+    "homeassistant.components.emt_madrid.sensor.APIEMT._make_request",
+    side_effect=make_request_mock,
+)
+async def test_invalid_stop(
+    setup_component, hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test the configuration of the emt_madrid component with an invalid bus stop."""
 
-    invalid_user = {
+    config = {
         "sensor": {
             "platform": "emt_madrid",
             "email": "test@email.com",
             "password": "password123",
             "stop": 123456,
-            "lines": "27",
-            "name": "Bus 27 en Cibeles",
+            "lines": ["27"],
             "icon": "mdi:fountain",
         }
     }
-    assert await async_setup_component(hass, "sensor", invalid_user)
+    assert await async_setup_component(hass, "sensor", config)
     await hass.async_block_till_done()
-    state = hass.states.get("sensor.bus_27_en_cibeles")
-
-    assert state.state == "unknown"
-    assert state.attributes["next_bus"] is None
-    assert state.attributes["stop_id"] == 123456
-    assert state.attributes["line"] == "27"
-    assert state.attributes["attribution"] == "Data provided by EMT Madrid MobilityLabs"
-    assert state.attributes["unit_of_measurement"] == "min"
-    assert state.attributes["icon"] == "mdi:fountain"
+    assert "Bus stop disabled or does not exist" in caplog.text
